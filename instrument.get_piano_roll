@@ -1,0 +1,146 @@
+
+!pip install tensorflow==2.0.0-alpha0 
+
+import tensorflow as tf
+from tensorflow.keras import backend as K
+import glob
+import random
+from pretty_midi import* 
+import IPython
+import numpy as np
+#from tqdm import tnrange, tqdm_notebook, tqdm
+from random import shuffle, seed
+import numpy as np
+from tensorflow.keras.losses import sparse_categorical_crossentropy
+from tensorflow.keras.optimizers import Nadam
+import numpy as np
+from numpy.random import choice
+import pickle
+import matplotlib.pyplot as plt
+from tqdm._tqdm_notebook import tqdm_notebook,tnrange, tqdm_notebook, tqdm
+import unicodedata
+import re
+import numpy as np
+import os
+import io
+import time
+from pretty_midi import instrument
+#stragglers = {}
+#channel==0
+def piano_roll_to_pretty_midi(piano_roll, fs=100, program=0):
+    '''Convert a Piano Roll array into a PrettyMidi object
+     with a single instrument.
+    Parameters
+    ----------
+    piano_roll : np.ndarray, shape=(128,frames), dtype=int
+        Piano roll of one instrument
+    fs : int
+        Sampling frequency of the columns, i.e. each column is spaced apart
+        by ``1./fs`` seconds.
+    program : int
+        The program number of the instrument.
+    Returns
+    -------
+    midi_object : pretty_midi.PrettyMIDI
+        A pretty_midi.PrettyMIDI class instance describing
+        the piano roll.
+    '''
+    
+    
+    # Process pitch changes
+        # Need to sort the pitch bend list for the following to work
+    
+    notes, frames = piano_roll.shape
+    pm = pretty_midi.PrettyMIDI()
+    instrument = pretty_midi.Instrument(program=program)
+    
+
+    # pad 1 column of zeros so we can acknowledge inital and ending events
+    piano_roll = np.pad(piano_roll, [(0, 0), (1, 1)], 'constant')
+
+    # use changes in velocities to find note on / note off events
+    velocity_changes = np.nonzero(np.diff(piano_roll).T)
+
+    # keep track on velocities and note on times
+    prev_velocities = np.zeros(notes, dtype=int)
+    note_on_time = np.zeros(notes)
+
+    for time, note in zip(*velocity_changes):
+        # use time + 1 because of padding above
+        velocity = piano_roll[-2048, time + 1]
+        time = time / fs
+        if velocity > 0:
+            if prev_velocities[note] == 0:
+                note_on_time[note] = time
+                prev_velocities[note] = velocity
+        else:
+            pm_note = pretty_midi.Note(
+                velocity=prev_velocities[note],
+                pitch=note,
+                start=note_on_time[note],
+                end=time)
+            instrument.notes.append(pm_note)
+            prev_velocities[note] = 0
+            
+    for bend in instrument.pitch_bends:
+        ordered_bends = sorted(self.pitch_bends, key=lambda bend: bend.time)
+        # Add in a bend of 0 at the end of time
+        end_bend = PitchBend(0, end_time)
+        for start_bend, end_bend in zip(ordered_bends,
+                                        ordered_bends[1:] + [end_bend]):
+            # Piano roll is already generated with everything bend = 0
+            if np.abs(start_bend.pitch) < 0:
+                continue
+            # Get integer and decimal part of bend amount
+            start_pitch = pitch_bend_to_semitones(start_bend.pitch)
+            bend_int = int(np.sign(start_pitch)*np.floor(np.abs(start_pitch)))
+            bend_decimal = np.abs(start_pitch - bend_int)
+            # Column indices effected by the bend
+            bend_range = np.r_[int(start_bend.time*fs):int(end_bend.time*fs)]
+            # Construct the bent part of the piano roll
+            bent_roll = np.zeros(piano_roll[:, bend_range].shape)
+            # Easiest to process differently depending on bend sign
+            if start_bend.pitch >= 0:
+                # First, pitch shift by the int amount
+                if bend_int is not 0:
+                    bent_roll[bend_int:] = piano_roll[:-bend_int, bend_range]
+                else:
+                    bent_roll = piano_roll[:, bend_range]
+                # Now, linear interpolate by the decimal place
+                bent_roll[1:] = ((1 - bend_decimal)*bent_roll[1:] +
+                                 bend_decimal*bent_roll[:-1])
+            else:
+                # Same procedure as for positive bends
+                if bend_int is not 0:
+                    bent_roll[:bend_int] = piano_roll[-bend_int:, bend_range]
+                else:
+                    bent_roll = piano_roll[:, bend_range]
+                bent_roll[:-1] = ((1 - bend_decimal)*bent_roll[:-1] +
+                                  bend_decimal*bent_roll[1:])
+            # Store bent portion back in piano roll
+            piano_roll[:, bend_range] = bent_roll
+        instrument.pitch_bends.append(bent_roll)
+     
+    pm.instruments.append(instrument)
+    return pm
+
+
+
+    '''Convert a Piano Roll array into a PrettyMidi object
+     with a single instrument.
+    Parameters
+    ----------
+    piano_roll : np.ndarray, shape=(128,frames), dtype=int
+        Piano roll of one instrument
+    fs : int
+        Sampling frequency of the columns, i.e. each column is spaced apart
+        by ``1./fs`` seconds.
+    program : int
+        The program number of the instrument.
+    Returns
+    -------
+    midi_object : pretty_midi.PrettyMIDI
+        A pretty_midi.PrettyMIDI class instance describing
+        the piano roll.
+    '''
+    
